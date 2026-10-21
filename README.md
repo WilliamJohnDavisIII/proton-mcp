@@ -1,13 +1,12 @@
 # proton-mcp
 
-MCP server for the **Proton privacy suite** — Mail, Pass, Drive, Calendar, and VPN. 36 tools for Claude and other MCP-compatible AI agents.
+MCP server for the **Proton privacy suite** — Mail, Pass, Drive, Calendar, and VPN. 15 mail tools are on by default; Pass, Drive, Calendar and VPN tools are opt-in (see [Optional tools](#optional-tools)).
 
 Built by Scott Jorgensen and Jorgenclaw (AI agent) for the [jorgenclaw.ai](https://jorgenclaw.ai) sovereignty stack.
 
 ## Requirements
 
 - **Proton Mail Bridge** — running on the host (provides IMAP/SMTP access to Proton Mail)
-- **pass-cli** — [Proton Pass CLI](https://proton.me/pass/download) for password manager tools
 - **Node.js 22+**
 
 ## Installation
@@ -18,66 +17,46 @@ cd proton-mcp
 npm install
 ```
 
-Create a `.env` file from the example:
+Create `~/.proton-mcp/bridge.json` (keep it `chmod 600`):
 
-```bash
-cp .env.example .env
-# Edit .env with your Proton Bridge credentials
-```
-
-## Configuration
-
-```env
-PROTON_BRIDGE_HOST=127.0.0.1
-PROTON_BRIDGE_IMAP_PORT=1143
-PROTON_BRIDGE_SMTP_PORT=1025
-PROTON_BRIDGE_USER=your@proton.me
-PROTON_BRIDGE_PASS=your-bridge-password
-PROTON_BRIDGE_FROM=your@proton.me
+```json
+{
+  "imap_host": "127.0.0.1",
+  "imap_port": 1143,
+  "smtp_host": "127.0.0.1",
+  "smtp_port": 1025,
+  "username": "your@proton.me",
+  "password": "your-bridge-password"
+}
 ```
 
 The Bridge password is found in Proton Bridge → Settings → your account → IMAP/SMTP password (this is NOT your Proton account password).
 
+If the file is missing, the server falls back to the `PROTON_BRIDGE_USERNAME` and `PROTON_BRIDGE_PASSWORD` env vars (plus optional `PROTON_BRIDGE_IMAP_HOST`, `PROTON_BRIDGE_IMAP_PORT`, `PROTON_BRIDGE_SMTP_HOST`, `PROTON_BRIDGE_SMTP_PORT`).
+
 ## Usage
 
-### With Claude Desktop
+### With Claude Code
 
-Add to your Claude Desktop config (`~/.config/claude/claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "proton": {
-      "command": "node",
-      "args": ["/path/to/proton-mcp/index.js"],
-      "env": {
-        "PROTON_BRIDGE_HOST": "127.0.0.1",
-        "PROTON_BRIDGE_IMAP_PORT": "1143",
-        "PROTON_BRIDGE_SMTP_PORT": "1025",
-        "PROTON_BRIDGE_USER": "your@proton.me",
-        "PROTON_BRIDGE_PASS": "your-bridge-password",
-        "PROTON_BRIDGE_FROM": "your@proton.me"
-      }
-    }
-  }
-}
+```bash
+claude mcp add --scope user proton -- node /path/to/proton-mcp/index.js
 ```
-
-### With NanoClaw
-
-Mount as an MCP server in the container configuration. See the [NanoClaw docs](https://github.com/qwibitai/nanoclaw) for MCP server setup.
 
 ### Standalone
 
 ```bash
-node --env-file=.env index.js
+node index.js
 ```
 
 The server communicates via MCP stdio protocol.
 
-## Tools (36)
+## Message IDs and folders
 
-### Mail (16 tools)
+`message_id` is the IMAP UID, which stays stable within a folder. Tools that act on a message take an optional `folder` (default `INBOX`); pass the `folder` that `mail__search_messages` returns for results outside the inbox. `mail__move_message` takes `source_folder` for this, since `folder` is its destination.
+
+## Tools
+
+### Mail (15 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -91,12 +70,15 @@ The server communicates via MCP stdio protocol.
 | `mail__forward_message` | Forward a message to another recipient |
 | `mail__mark_message` | Mark as read/unread |
 | `mail__star_message` | Star/unstar a message |
-| `mail__delete_message` | Permanently delete a message |
+| `mail__delete_message` | Move a message to Trash |
 | `mail__move_message` | Move to a different folder |
 | `mail__list_folders` | List all mail folders |
 | `mail__list_folder_messages` | List messages in a specific folder |
-| `mail__get_attachments` | Download message attachments |
-| `mail__get_thread` | Reconstruct full conversation thread |
+| `mail__get_attachments` | Save message attachments to a private temp directory and return their paths |
+
+### Optional tools
+
+Set `PROTON_MCP_EXTRAS=1` to register these. They need extra local tooling: [pass-cli](https://proton.me/pass/download) for Pass, `rclone` with a `protondrive:` remote for Drive, and a CalDAV server (`CALDAV_HOST`, `CALDAV_PORT`, `CALDAV_USER`, `CALDAV_PASS`) for Calendar. `pass__get_item` and `pass__get_totp` hand raw passwords and 2FA codes to the model.
 
 ### Pass (9 tools)
 
@@ -144,7 +126,7 @@ The server communicates via MCP stdio protocol.
 - **Proton Bridge password** is NOT your Proton account password — it's a Bridge-specific IMAP/SMTP password
 - **pass__list_items** and **pass__search_items** never expose passwords or TOTP seeds
 - Only **pass__get_item** returns the actual password — use it deliberately
-- The `.env` file contains credentials — keep it out of version control
+- `~/.proton-mcp/bridge.json` contains credentials — keep it private (`chmod 600`) and out of version control
 
 ## License
 
